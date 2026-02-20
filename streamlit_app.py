@@ -3,7 +3,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import numpy as np
 
-st.set_page_config(page_title="Quant16 Portfolio Optimization", layout="wide", page_icon="📊")
+st.set_page_config(page_title="Quant16 Portfolio Optimization - Digital Assets", layout="wide", page_icon="📊")
 
 # Custom CSS for dark theme
 st.markdown("""
@@ -162,9 +162,9 @@ def load_data():
     df['Combined Score'] = (df['Avg Specificity'] + df['Avg Criticality']) / 2
     
     # Savings formula: Higher combined score = Lower savings (harder to optimize)
-    # Score 1 → ~70% savings, Score 5 → ~0% savings
-    df['Savings %'] = 0.70 - (0.70 / 3.6) * (df['Combined Score'] - 1.4)
-    df['Savings %'] = df['Savings %'].clip(lower=0, upper=0.70)
+    # Score 1.4 → 70% savings, Score 5.0 → 20% savings
+    df['Savings %'] = 0.70 - (0.50 / 3.6) * (df['Combined Score'] - 1.4)
+    df['Savings %'] = df['Savings %'].clip(lower=0.20, upper=0.70)
     
     # Calculate financial metrics
     df['Base Spend'] = df['Development Cost']
@@ -247,17 +247,7 @@ df = df[(df['Fiscal Year'] >= fy_min) & (df['Fiscal Year'] <= fy_max)]
 st.sidebar.markdown("---")
 
 # Sidebar - Savings adjustment parameter
-st.sidebar.header("Parameters")
-
-app_cost_share = st.sidebar.slider(
-    "Applications Cost Share (%)",
-    min_value=0,
-    max_value=100,
-    value=65,
-    step=5,
-    help="% of app cost allocated to Applications components. Remainder goes to Infrastructure."
-)
-infra_cost_share = 100 - app_cost_share
+st.sidebar.header("Savings Parameter")
 
 savings_factor = st.sidebar.slider(
     "Component Optimization Realization (%)",
@@ -278,6 +268,16 @@ ai_factor = st.sidebar.slider(
     step=5,
     help="Adjust AI-driven cost reduction from 0% to 100%"
 )
+
+app_cost_share = st.sidebar.slider(
+    "Applications Cost Share (%)",
+    min_value=0,
+    max_value=100,
+    value=65,
+    step=5,
+    help="% of app cost allocated to Applications components. Remainder goes to Infrastructure."
+)
+infra_cost_share = 100 - app_cost_share
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("#### Projections")
@@ -405,7 +405,7 @@ st.markdown("""
         </div>
         <div>
             <h1 style='margin: 0; color: #0F0F0F; font-size: 28px; font-weight: 700;'>
-                Quant16 Portfolio Optimization Model
+                Quant16 Portfolio Optimization Model - Digital Assets
             </h1>
             <p style='margin: 5px 0 0 0; color: #0F0F0F; font-size: 14px;'>
                 Cloud-Enabled Low-Code Platform Migration Savings Scenario
@@ -846,23 +846,24 @@ with tab1:
                 "left": "10%",
                 "bottom": "2%",
                 "right": "25%",
-                "symbolSize": 12,
+                "symbolSize": 18,
                 "orient": "LR",
                 "label": {
                     "position": "right",
                     "verticalAlign": "middle",
                     "align": "left",
-                    "fontSize": 10,
+                    "fontSize": 13,
                     "color": "#FFFFFF",
-                    "distance": 6
+                    "distance": 10,
+                    "fontWeight": "bold"
                 },
                 "leaves": {
                     "label": {
                         "position": "right",
                         "verticalAlign": "middle",
                         "align": "left",
-                        "fontSize": 9,
-                        "color": "#B0B0B0"
+                        "fontSize": 11,
+                        "color": "#D0D0D0"
                     }
                 },
                 "lineStyle": {
@@ -880,7 +881,7 @@ with tab1:
             }]
         }
         
-        st_echarts(option, height="650px", key="structure_tree")
+        st_echarts(option, height="700px", key="structure_tree")
         
         st.caption("🖱️ **Click nodes to expand/collapse** | 🟢 Portfolio → 🟠 Sector → 🟣 Department → 🔵 Vendor → ⚪ Apps")
         
@@ -1025,134 +1026,156 @@ with tab2:
 
     # === Top and Bottom Apps by Savings (always visible) ===
     st.markdown("<br>", unsafe_allow_html=True)
-    st.markdown("### Top & Bottom 10 Apps by Savings")
-    col1, col2 = st.columns(2)
+    with st.expander("📊 Top & Bottom 10 Apps by Savings", expanded=False):
+        col1, col2 = st.columns(2)
     
-    with col1:
-        st.markdown("#### Top 10 Apps by Savings")
+        with col1:
+            st.markdown("#### Top 10 Apps by Savings %")
     
-        top_apps = df.nlargest(10, 'Potential Savings')[['App Name', 'Base Spend', 'Optimized Spend', 'Potential Savings', 'Adjusted Savings %']].sort_values('Potential Savings', ascending=True)
+            top_apps = df.nlargest(10, 'Adjusted Savings %')[['App Name', 'Base Spend', 'Optimized Spend', 'Potential Savings', 'Adjusted Savings %']].sort_values('Adjusted Savings %', ascending=True)
         
-        fig_top = go.Figure()
+            fig_top = go.Figure()
         
-        fig_top.add_trace(go.Bar(
-            name='Baseline Cost',
-            x=top_apps['Base Spend'] / 1e6,
-            y=top_apps['App Name'],
-            orientation='h',
-            marker=dict(color=COLORS['secondary']),
-            hovertemplate='<b>%{y}</b><br>Baseline: $%{x:.2f}M<extra></extra>'
-        ))
+            fig_top.add_trace(go.Bar(
+                name='Baseline Cost',
+                x=top_apps['Base Spend'] / 1e6,
+                y=top_apps['App Name'],
+                orientation='h',
+                marker=dict(color=COLORS['secondary']),
+                hovertemplate='<b>%{y}</b><br>Baseline: $%{x:.2f}M<extra></extra>'
+            ))
         
-        fig_top.add_trace(go.Bar(
-            name='Optimized Cost',
-            x=top_apps['Optimized Spend'] / 1e6,
-            y=top_apps['App Name'],
-            orientation='h',
-            marker=dict(color=COLORS['primary']),
-            hovertemplate='<b>%{y}</b><br>Optimized: $%{x:.2f}M<extra></extra>'
-        ))
+            fig_top.add_trace(go.Bar(
+                name='Optimized Cost',
+                x=top_apps['Optimized Spend'] / 1e6,
+                y=top_apps['App Name'],
+                orientation='h',
+                marker=dict(color=COLORS['primary']),
+                hovertemplate='<b>%{y}</b><br>Optimized: $%{x:.2f}M<extra></extra>'
+            ))
         
-        fig_top.update_layout(
-            paper_bgcolor=COLORS['background'],
-            plot_bgcolor=COLORS['card'],
-            font=dict(color='#FFFFFF', family='Arial', size=10),
-            xaxis=dict(title='Cost ($M)', gridcolor='#333333'),
-            yaxis=dict(title='', gridcolor='#333333'),
-            barmode='group',
-            height=450,
-            legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1)
-        )
+            fig_top.update_layout(
+                paper_bgcolor=COLORS['background'],
+                plot_bgcolor=COLORS['card'],
+                font=dict(color='#FFFFFF', family='Arial', size=10),
+                xaxis=dict(title='Cost ($M)', gridcolor='#333333'),
+                yaxis=dict(title='', gridcolor='#333333'),
+                barmode='group',
+                height=450,
+                legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1)
+            )
         
-        st.plotly_chart(fig_top, use_container_width=True)
+            st.plotly_chart(fig_top, use_container_width=True)
+        
+            # Top savings summary card
+            top_total = top_apps['Potential Savings'].sum()
+            top_avg_pct = top_apps['Adjusted Savings %'].mean() * 100
+            st.markdown(f"""
+            <div style='background: linear-gradient(135deg, {COLORS['card']} 0%, #252525 100%); padding: 15px; border-radius: 8px; border-top: 3px solid {COLORS['primary']}'>
+                <p style='margin: 0; color: #D0D0D0; font-size: 12px;'>TOP 10 TOTAL SAVINGS</p>
+                <h3 style='margin: 5px 0; color: {COLORS['primary']}; font-size: 24px;'>${top_total/1e6:.2f}M</h3>
+                <p style='margin: 0; color: #B0B0B0; font-size: 11px;'>Avg savings rate: {top_avg_pct:.1f}%</p>
+            </div>
+            """, unsafe_allow_html=True)
     
-    with col2:
-        st.markdown("#### Bottom 10 Apps by Savings")
+        with col2:
+            st.markdown("#### Bottom 10 Apps by Savings")
         
-        bottom_apps = df.nsmallest(10, 'Potential Savings')[['App Name', 'Base Spend', 'Optimized Spend', 'Potential Savings', 'Adjusted Savings %']].sort_values('Potential Savings', ascending=True)
+            bottom_apps = df.nsmallest(10, 'Potential Savings')[['App Name', 'Base Spend', 'Optimized Spend', 'Potential Savings', 'Adjusted Savings %']].sort_values('Potential Savings', ascending=True)
         
-        fig_bottom = go.Figure()
+            fig_bottom = go.Figure()
         
-        fig_bottom.add_trace(go.Bar(
-            name='Baseline Cost',
-            x=bottom_apps['Base Spend'] / 1e6,
-            y=bottom_apps['App Name'],
-            orientation='h',
-            marker=dict(color=COLORS['secondary']),
-            hovertemplate='<b>%{y}</b><br>Baseline: $%{x:.2f}M<extra></extra>'
-        ))
+            fig_bottom.add_trace(go.Bar(
+                name='Baseline Cost',
+                x=bottom_apps['Base Spend'] / 1e6,
+                y=bottom_apps['App Name'],
+                orientation='h',
+                marker=dict(color=COLORS['secondary']),
+                hovertemplate='<b>%{y}</b><br>Baseline: $%{x:.2f}M<extra></extra>'
+            ))
         
-        fig_bottom.add_trace(go.Bar(
-            name='Optimized Cost',
-            x=bottom_apps['Optimized Spend'] / 1e6,
-            y=bottom_apps['App Name'],
-            orientation='h',
-            marker=dict(color=COLORS['danger']),
-            hovertemplate='<b>%{y}</b><br>Optimized: $%{x:.2f}M<extra></extra>'
-        ))
+            fig_bottom.add_trace(go.Bar(
+                name='Optimized Cost',
+                x=bottom_apps['Optimized Spend'] / 1e6,
+                y=bottom_apps['App Name'],
+                orientation='h',
+                marker=dict(color=COLORS['danger']),
+                hovertemplate='<b>%{y}</b><br>Optimized: $%{x:.2f}M<extra></extra>'
+            ))
         
-        fig_bottom.update_layout(
-            paper_bgcolor=COLORS['background'],
-            plot_bgcolor=COLORS['card'],
-            font=dict(color='#FFFFFF', family='Arial', size=10),
-            xaxis=dict(title='Cost ($M)', gridcolor='#333333'),
-            yaxis=dict(title='', gridcolor='#333333'),
-            barmode='group',
-            height=450,
-            legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1)
-        )
+            fig_bottom.update_layout(
+                paper_bgcolor=COLORS['background'],
+                plot_bgcolor=COLORS['card'],
+                font=dict(color='#FFFFFF', family='Arial', size=10),
+                xaxis=dict(title='Cost ($M)', gridcolor='#333333'),
+                yaxis=dict(title='', gridcolor='#333333'),
+                barmode='group',
+                height=450,
+                legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1)
+            )
         
-        st.plotly_chart(fig_bottom, use_container_width=True)
+            st.plotly_chart(fig_bottom, use_container_width=True)
+        
+            # Bottom savings summary card
+            bottom_total = bottom_apps['Potential Savings'].sum()
+            bottom_avg_pct = bottom_apps['Adjusted Savings %'].mean() * 100
+            st.markdown(f"""
+            <div style='background: linear-gradient(135deg, {COLORS['card']} 0%, #252525 100%); padding: 15px; border-radius: 8px; border-top: 3px solid {COLORS['danger']}'>
+                <p style='margin: 0; color: #D0D0D0; font-size: 12px;'>BOTTOM 10 TOTAL SAVINGS</p>
+                <h3 style='margin: 5px 0; color: {COLORS['danger']}; font-size: 24px;'>${bottom_total/1e6:.2f}M</h3>
+                <p style='margin: 0; color: #B0B0B0; font-size: 11px;'>Avg savings rate: {bottom_avg_pct:.1f}%</p>
+            </div>
+            """, unsafe_allow_html=True)
     
     # === Component Structure Sankey (at end of tab) ===
     st.markdown("<br>", unsafe_allow_html=True)
-    st.markdown("### Component Structure")
+    with st.expander("🏗️ Component Structure", expanded=False):
     
-    structure_df = pd.read_excel('AssetList.xlsx', sheet_name='Structure')
-    component_to_category = dict(zip(structure_df['Component Lowest'], structure_df['Component lvl 1']))
-    component_to_lvl2 = dict(zip(structure_df['Component Lowest'], structure_df['Component lvl 2']))
+        structure_df = pd.read_excel('AssetList.xlsx', sheet_name='Structure')
+        component_to_category = dict(zip(structure_df['Component Lowest'], structure_df['Component lvl 1']))
+        component_to_lvl2 = dict(zip(structure_df['Component Lowest'], structure_df['Component lvl 2']))
     
-    criticality_df = pd.read_excel('AssetList.xlsx', sheet_name='Criticality Score')
-    component_names = list(criticality_df.iloc[0, 1:].values)
+        criticality_df = pd.read_excel('AssetList.xlsx', sheet_name='Criticality Score')
+        component_names = list(criticality_df.iloc[0, 1:].values)
     
-    cat_counts = {}
-    for comp_name in component_names:
-        cat = component_to_category.get(comp_name, 'Infrastructure')
-        cat_counts[cat] = cat_counts.get(cat, 0) + 1
+        cat_counts = {}
+        for comp_name in component_names:
+            cat = component_to_category.get(comp_name, 'Infrastructure')
+            cat_counts[cat] = cat_counts.get(cat, 0) + 1
     
-    comp_sankey_data = []
-    for comp_name in component_names:
-        lvl1 = component_to_category.get(comp_name, 'Infrastructure')
-        lvl2 = component_to_lvl2.get(comp_name, 'Unknown')
-        if lvl1 == 'Applications':
-            cat_share = app_cost_share / 100
+        comp_sankey_data = []
+        for comp_name in component_names:
+            lvl1 = component_to_category.get(comp_name, 'Infrastructure')
+            lvl2 = component_to_lvl2.get(comp_name, 'Unknown')
+            if lvl1 == 'Applications':
+                cat_share = app_cost_share / 100
+            else:
+                cat_share = infra_cost_share / 100
+            n_in_cat = cat_counts.get(lvl1, 1)
+            comp_value = (portfolio_baseline * cat_share) / n_in_cat
+            comp_sankey_data.append({'Category': lvl1, 'Type': lvl2, 'Component': comp_name, 'Value': comp_value})
+    
+        comp_sankey_df = pd.DataFrame(comp_sankey_data)
+    
+        if len(comp_sankey_df) > 0 and comp_sankey_df['Value'].sum() > 0:
+            labels, ncolors, sources, targets, values, lcolors = build_sankey_capped(
+                comp_sankey_df, ['Category', 'Type', 'Component'], 'Value', max_per_level=10
+            )
+            fig_comp_sankey = go.Figure(data=[go.Sankey(
+                node=dict(pad=15, thickness=20, line=dict(color='#333333', width=0.5),
+                          label=labels, color=ncolors,
+                          hovertemplate='<b>%{label}</b><br>$%{value:,.0f}<extra></extra>'),
+                link=dict(source=sources, target=targets, value=values, color=lcolors,
+                          hovertemplate='%{source.label} → %{target.label}<br>$%{value:,.0f}<extra></extra>')
+            )])
+            fig_comp_sankey.update_layout(
+                paper_bgcolor=COLORS['background'],
+                font=dict(color='#FFFFFF', family='Arial', size=10),
+                height=550, margin=dict(l=10, r=10, t=30, b=10)
+            )
+            st.plotly_chart(fig_comp_sankey, use_container_width=True)
         else:
-            cat_share = infra_cost_share / 100
-        n_in_cat = cat_counts.get(lvl1, 1)
-        comp_value = (portfolio_baseline * cat_share) / n_in_cat
-        comp_sankey_data.append({'Category': lvl1, 'Type': lvl2, 'Component': comp_name, 'Value': comp_value})
-    
-    comp_sankey_df = pd.DataFrame(comp_sankey_data)
-    
-    if len(comp_sankey_df) > 0 and comp_sankey_df['Value'].sum() > 0:
-        labels, ncolors, sources, targets, values, lcolors = build_sankey_capped(
-            comp_sankey_df, ['Category', 'Type', 'Component'], 'Value', max_per_level=10
-        )
-        fig_comp_sankey = go.Figure(data=[go.Sankey(
-            node=dict(pad=15, thickness=20, line=dict(color='#333333', width=0.5),
-                      label=labels, color=ncolors,
-                      hovertemplate='<b>%{label}</b><br>$%{value:,.0f}<extra></extra>'),
-            link=dict(source=sources, target=targets, value=values, color=lcolors,
-                      hovertemplate='%{source.label} → %{target.label}<br>$%{value:,.0f}<extra></extra>')
-        )])
-        fig_comp_sankey.update_layout(
-            paper_bgcolor=COLORS['background'],
-            font=dict(color='#FFFFFF', family='Arial', size=10),
-            height=550, margin=dict(l=10, r=10, t=30, b=10)
-        )
-        st.plotly_chart(fig_comp_sankey, use_container_width=True)
-    else:
-        st.info("No component data available for the current filters.")
+            st.info("No component data available for the current filters.")
 
 
 with tab3:
@@ -1319,180 +1342,164 @@ with tab3:
     
     # AI Activity Analysis
     st.markdown("<br>", unsafe_allow_html=True)
-    st.markdown("### AI Automation by Activity")
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        # Average automation potential by activity
-        activity_columns = [col for col in ai_potential_df.columns if col != 'App Name']
-        avg_automation = ai_potential_df[activity_columns].mean().sort_values(ascending=False)
+    with st.expander("🤖 AI Automation by Activity", expanded=False):
+        col1, col2 = st.columns(2)
         
-        # Merge with IA Structure to get Soft/Hard classification
-        activity_type_map = dict(zip(ia_structure_df['IA Component Lowest'], ia_structure_df['IA Component Lvl1']))
-        activity_types = [activity_type_map.get(act, 'Unknown') for act in avg_automation.index]
+        with col1:
+            activity_columns = [col for col in ai_potential_df.columns if col != 'App Name']
+            avg_automation = ai_potential_df[activity_columns].mean().sort_values(ascending=False)
+            
+            activity_type_map = dict(zip(ia_structure_df['IA Component Lowest'], ia_structure_df['IA Component Lvl1']))
+            activity_types = [activity_type_map.get(act, 'Unknown') for act in avg_automation.index]
+            
+            fig_activity = go.Figure()
+            colors_map = {'Soft': COLORS['primary'], 'Hard': COLORS['secondary']}
+            
+            fig_activity.add_trace(go.Bar(
+                x=avg_automation.values * 100,
+                y=avg_automation.index,
+                orientation='h',
+                marker=dict(color=[colors_map.get(t, '#B0B0B0') for t in activity_types]),
+                text=[f"{v*100:.1f}%" for v in avg_automation.values],
+                textposition='outside',
+                hovertemplate='%{y}<br>Automation: %{x:.1f}%<extra></extra>'
+            ))
+            
+            fig_activity.update_layout(
+                paper_bgcolor=COLORS['background'],
+                plot_bgcolor=COLORS['card'],
+                font=dict(color='#FFFFFF', family='Arial', size=11),
+                title='Average AI Automation Potential by Activity',
+                xaxis=dict(title='Automation Potential (%)', gridcolor='#333333', range=[0, 100]),
+                yaxis=dict(title='', gridcolor='#333333'),
+                height=500,
+                showlegend=False
+            )
+            
+            st.plotly_chart(fig_activity, use_container_width=True)
         
-        fig_activity = go.Figure()
+        with col2:
+            soft_activities = [act for act, typ in zip(avg_automation.index, activity_types) if typ == 'Soft']
+            hard_activities = [act for act, typ in zip(avg_automation.index, activity_types) if typ == 'Hard']
+            
+            avg_soft = ai_potential_df[soft_activities].mean().mean()
+            avg_hard = ai_potential_df[hard_activities].mean().mean()
+            
+            fig_type = go.Figure()
+            
+            fig_type.add_trace(go.Bar(
+                x=['Soft Activities', 'Hard Activities'],
+                y=[avg_soft * 100, avg_hard * 100],
+                marker=dict(color=[COLORS['primary'], COLORS['secondary']]),
+                text=[f"{avg_soft*100:.1f}%", f"{avg_hard*100:.1f}%"],
+                textposition='outside',
+                textfont=dict(size=16)
+            ))
+            
+            fig_type.update_layout(
+                paper_bgcolor=COLORS['background'],
+                plot_bgcolor=COLORS['card'],
+                font=dict(color='#FFFFFF', family='Arial'),
+                title='AI Automation: Soft vs Hard Activities',
+                yaxis=dict(title='Average Automation Potential (%)', gridcolor='#333333', range=[0, 100]),
+                height=350,
+                showlegend=False
+            )
+            
+            st.plotly_chart(fig_type, use_container_width=True)
+
+        # Aligned automation cards
+        top_activity = avg_automation.index[0]
+        top_activity_pct = avg_automation.values[0] * 100
+        least_activity = avg_automation.index[-1]
+        least_activity_pct = avg_automation.values[-1] * 100
         
-        colors_map = {'Soft': COLORS['primary'], 'Hard': COLORS['secondary']}
-        
-        fig_activity.add_trace(go.Bar(
-            x=avg_automation.values * 100,
-            y=avg_automation.index,
-            orientation='h',
-            marker=dict(color=[colors_map.get(t, '#B0B0B0') for t in activity_types]),
-            text=[f"{v*100:.1f}%" for v in avg_automation.values],
-            textposition='outside',
-            hovertemplate='%{y}<br>Automation: %{x:.1f}%<extra></extra>'
-        ))
-        
-        fig_activity.update_layout(
-            paper_bgcolor=COLORS['background'],
-            plot_bgcolor=COLORS['card'],
-            font=dict(color='#FFFFFF', family='Arial', size=11),
-            title='Average AI Automation Potential by Activity',
-            xaxis=dict(
-                title='Automation Potential (%)',
-                gridcolor='#333333',
-                range=[0, 100]
-            ),
-            yaxis=dict(
-                title='',
-                gridcolor='#333333'
-            ),
-            height=500,
-            showlegend=False
-        )
-        
-        st.plotly_chart(fig_activity, use_container_width=True)
-    
-    with col2:
-        # Soft vs Hard activities breakdown
-        soft_activities = [act for act, typ in zip(avg_automation.index, activity_types) if typ == 'Soft']
-        hard_activities = [act for act, typ in zip(avg_automation.index, activity_types) if typ == 'Hard']
-        
-        avg_soft = ai_potential_df[soft_activities].mean().mean()
-        avg_hard = ai_potential_df[hard_activities].mean().mean()
-        
-        fig_type = go.Figure()
-        
-        fig_type.add_trace(go.Bar(
-            x=['Soft Activities', 'Hard Activities'],
-            y=[avg_soft * 100, avg_hard * 100],
-            marker=dict(color=[COLORS['primary'], COLORS['secondary']]),
-            text=[f"{avg_soft*100:.1f}%", f"{avg_hard*100:.1f}%"],
-            textposition='outside',
-            textfont=dict(size=16)
-        ))
-        
-        fig_type.update_layout(
-            paper_bgcolor=COLORS['background'],
-            plot_bgcolor=COLORS['card'],
-            font=dict(color='#FFFFFF', family='Arial'),
-            title='AI Automation: Soft vs Hard Activities',
-            yaxis=dict(
-                title='Average Automation Potential (%)',
-                gridcolor='#333333',
-                range=[0, 100]
-            ),
-            height=350,
-            showlegend=False
-        )
-        
-        st.plotly_chart(fig_type, use_container_width=True)
-        
-        # Activity type legend
-        st.markdown(f"""
-        <div style='background-color: {COLORS['card']}; padding: 15px; border-radius: 8px; margin-top: 20px;'>
-            <p style='margin: 0 0 10px 0; color: #D0D0D0; font-size: 12px; font-weight: 600;'>ACTIVITY TYPES</p>
-            <div style='display: flex; gap: 20px;'>
-                <div>
-                    <span style='color: {COLORS['primary']}; font-size: 14px; font-weight: 600;'>● Soft</span>
-                    <p style='margin: 5px 0 0 0; color: #B0B0B0; font-size: 11px;'>Requirements, Design, Documentation, Project Mgmt, Training</p>
-                </div>
-                <div>
-                    <span style='color: {COLORS['secondary']}; font-size: 14px; font-weight: 600;'>● Hard</span>
-                    <p style='margin: 5px 0 0 0; color: #B0B0B0; font-size: 11px;'>Configuration, Integration, Testing, Support</p>
-                </div>
+        card_col1, card_col2 = st.columns(2)
+        with card_col1:
+            st.markdown(f"""
+            <div style='background: linear-gradient(135deg, {COLORS['card']} 0%, #252525 100%); padding: 15px; border-radius: 8px; border-top: 3px solid {COLORS['primary']}'>
+                <p style='margin: 0; color: #D0D0D0; font-size: 12px;'>HIGHEST AUTOMATION POTENTIAL</p>
+                <h3 style='margin: 5px 0; color: {COLORS['primary']}; font-size: 20px;'>{top_activity}</h3>
+                <p style='margin: 0; color: #B0B0B0; font-size: 11px;'>{top_activity_pct:.1f}% avg automation potential</p>
             </div>
-            <p style='margin: 15px 0 0 0; color: #D0D0D0; font-size: 11px;'>
-                <b>AI Calculation:</b> AI Savings % = Σ(IA Engagement Time × AI Automation Potential) across all activities
-            </p>
-        </div>
-        """, unsafe_allow_html=True)
+            """, unsafe_allow_html=True)
+        with card_col2:
+            st.markdown(f"""
+            <div style='background: linear-gradient(135deg, {COLORS['card']} 0%, #252525 100%); padding: 15px; border-radius: 8px; border-top: 3px solid {COLORS['secondary']}'>
+                <p style='margin: 0; color: #D0D0D0; font-size: 12px;'>LOWEST AUTOMATION POTENTIAL</p>
+                <h3 style='margin: 5px 0; color: {COLORS['secondary']}; font-size: 20px;'>{least_activity}</h3>
+                <p style='margin: 0; color: #B0B0B0; font-size: 11px;'>{least_activity_pct:.1f}% avg automation potential</p>
+            </div>
+            """, unsafe_allow_html=True)
 
     # === AI Structure Sankey: Sector → Soft/Hard → Activity ===
     st.markdown("<br>", unsafe_allow_html=True)
-    st.markdown("### AI Cost Flow — Sector → Activity Structure")
-    
-    # Build dataset: for each app, distribute AI savings across activities proportionally
-    activity_columns_sankey = [col for col in ai_potential_df.columns if col != 'App Name']
-    activity_type_map_sankey = dict(zip(ia_structure_df['IA Component Lowest'], ia_structure_df['IA Component Lvl1']))
-    
-    ai_sankey_rows = []
-    for _, row in df.iterrows():
-        app_name = row['App Name']
-        sector = row['Sector']
-        ai_total = row['AI Cost Reduction']
+    with st.expander("🔀 AI Cost Flow — Sector → Activity Structure", expanded=False):
+        activity_columns_sankey = [col for col in ai_potential_df.columns if col != 'App Name']
+        activity_type_map_sankey = dict(zip(ia_structure_df['IA Component Lowest'], ia_structure_df['IA Component Lvl1']))
         
-        if ai_total <= 0 or pd.isna(sector):
-            continue
-        
-        # Get this app's automation potential per activity
-        app_pot = ai_potential_df[ai_potential_df['App Name'] == app_name]
-        app_time = ia_time_df[ia_time_df['App Name'] == app_name]
-        
-        if len(app_pot) > 0 and len(app_time) > 0:
-            # Weight = time × potential for each activity
-            weights = {}
-            for act in activity_columns_sankey:
-                t = app_time[act].values[0] if act in app_time.columns else 0
-                p = app_pot[act].values[0] if act in app_pot.columns else 0
-                w = t * p
-                if w > 0:
-                    weights[act] = w
+        ai_sankey_rows = []
+        for _, row in df.iterrows():
+            app_name = row['App Name']
+            sector = row['Sector']
+            ai_total = row['AI Cost Reduction']
             
-            total_w = sum(weights.values()) if weights else 1
+            if ai_total <= 0 or pd.isna(sector):
+                continue
             
-            for act, w in weights.items():
-                ia_type = activity_type_map_sankey.get(act, 'Soft')
-                ai_sankey_rows.append({
-                    'Sector': str(sector),
-                    'IA Type': ia_type,
-                    'Activity': act,
-                    'Value': ai_total * (w / total_w)
-                })
-    
-    ai_sankey_df = pd.DataFrame(ai_sankey_rows)
-    
-    if len(ai_sankey_df) > 0 and ai_sankey_df['Value'].sum() > 0:
-        labels, ncolors, sources, targets, values, lcolors = build_sankey_capped(
-            ai_sankey_df, ['Sector', 'IA Type', 'Activity'], 'Value', max_per_level=10
-        )
+            app_pot = ai_potential_df[ai_potential_df['App Name'] == app_name]
+            app_time = ia_time_df[ia_time_df['App Name'] == app_name]
+            
+            if len(app_pot) > 0 and len(app_time) > 0:
+                weights = {}
+                for act in activity_columns_sankey:
+                    t = app_time[act].values[0] if act in app_time.columns else 0
+                    p = app_pot[act].values[0] if act in app_pot.columns else 0
+                    w = t * p
+                    if w > 0:
+                        weights[act] = w
+                
+                total_w = sum(weights.values()) if weights else 1
+                
+                for act, w in weights.items():
+                    ia_type = activity_type_map_sankey.get(act, 'Soft')
+                    ai_sankey_rows.append({
+                        'Sector': str(sector),
+                        'IA Type': ia_type,
+                        'Activity': act,
+                        'Value': ai_total * (w / total_w)
+                    })
         
-        fig_ai_sankey = go.Figure(data=[go.Sankey(
-            node=dict(
-                pad=15, thickness=20,
-                line=dict(color='#333333', width=0.5),
-                label=labels, color=ncolors,
-                hovertemplate='<b>%{label}</b><br>AI Savings: $%{value:,.0f}<extra></extra>'
-            ),
-            link=dict(
-                source=sources, target=targets, value=values, color=lcolors,
-                hovertemplate='%{source.label} → %{target.label}<br>$%{value:,.0f}<extra></extra>'
+        ai_sankey_df = pd.DataFrame(ai_sankey_rows)
+        
+        if len(ai_sankey_df) > 0 and ai_sankey_df['Value'].sum() > 0:
+            labels, ncolors, sources, targets, values, lcolors = build_sankey_capped(
+                ai_sankey_df, ['Sector', 'IA Type', 'Activity'], 'Value', max_per_level=10
             )
-        )])
-        
-        fig_ai_sankey.update_layout(
-            paper_bgcolor=COLORS['background'],
-            font=dict(color='#FFFFFF', family='Arial', size=10),
-            height=550,
-            margin=dict(l=10, r=10, t=30, b=10)
-        )
-        
-        st.plotly_chart(fig_ai_sankey, use_container_width=True)
-    else:
-        st.info("No AI savings data available for the current filters.")
+            
+            fig_ai_sankey = go.Figure(data=[go.Sankey(
+                node=dict(
+                    pad=15, thickness=20,
+                    line=dict(color='#333333', width=0.5),
+                    label=labels, color=ncolors,
+                    hovertemplate='<b>%{label}</b><br>AI Savings: $%{value:,.0f}<extra></extra>'
+                ),
+                link=dict(
+                    source=sources, target=targets, value=values, color=lcolors,
+                    hovertemplate='%{source.label} → %{target.label}<br>$%{value:,.0f}<extra></extra>'
+                )
+            )])
+            
+            fig_ai_sankey.update_layout(
+                paper_bgcolor=COLORS['background'],
+                font=dict(color='#FFFFFF', family='Arial', size=10),
+                height=550,
+                margin=dict(l=10, r=10, t=30, b=10)
+            )
+            
+            st.plotly_chart(fig_ai_sankey, use_container_width=True)
+        else:
+            st.info("No AI savings data available for the current filters.")
 
 
 
@@ -1571,7 +1578,7 @@ with tab5:
                 colorscale=[[0, COLORS['danger']], [0.5, COLORS['secondary']], [1, '#4ECDC4']],
                 reversescale=True,
                 showscale=True,
-                colorbar=dict(title='Avg Spec/Crit'),
+                colorbar=dict(title='Specificity'),
                 opacity=0.75
             ),
             text=inventory_df['App Name'],
@@ -1632,7 +1639,7 @@ with tab5:
         
         st.plotly_chart(fig_top_inv, use_container_width=True)
 
-    # === Portfolio Cost Flow (ECharts Collapsible Tree) ===
+    # === Portfolio Cost Flow ===
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("#### Portfolio Cost Flow")
     
@@ -1640,90 +1647,76 @@ with tab5:
         "Display Value:",
         ["Baseline Cost", "Optimized + AI", "Total Savings"],
         horizontal=True,
-        key="flow_metric"
+        key="flow_metric_v5"
     )
     
-    # Compute flow value column
+    flow_df = inventory_df.copy()
     if flow_metric == "Baseline Cost":
-        inventory_df['_flow_val'] = inventory_df['Base Spend']
+        flow_df['_fv'] = flow_df['Base Spend']
     elif flow_metric == "Optimized + AI":
-        inventory_df['_flow_val'] = inventory_df['Total AI Cost']
+        flow_df['_fv'] = flow_df['Total AI Cost']
     else:
-        inventory_df['_flow_val'] = inventory_df['Potential Savings'] + inventory_df['AI Cost Reduction']
+        flow_df['_fv'] = flow_df['Potential Savings'] + flow_df['AI Cost Reduction']
     
-    flow_df = inventory_df[inventory_df['_flow_val'] > 0].copy()
+    flow_df = flow_df[flow_df['_fv'] > 0]
     
-    try:
-        from streamlit_echarts import st_echarts
+    if len(flow_df) > 0:
+        # Build sunburst data manually for full control
+        sb_ids = ["Portfolio"]
+        sb_labels = ["Portfolio"]
+        sb_parents = [""]
+        sb_values = [0]  # root gets 0 (auto-summed)
+        sb_colors = [COLORS['primary']]
         
-        MAX_FLOW = 8
-        
-        def fmt_flow(val):
-            if val >= 1e6: return f"${val/1e6:.1f}M"
-            elif val >= 1e3: return f"${val/1e3:.0f}K"
-            else: return f"${val:.0f}"
-        
-        flow_root_val = flow_df['_flow_val'].sum()
-        
-        flow_sector_children = []
-        for sector in sorted(flow_df['Sector'].dropna().unique()):
+        for sector in flow_df['Sector'].dropna().unique():
             sdf = flow_df[flow_df['Sector'] == sector]
-            sval = sdf['_flow_val'].sum()
+            sid = f"s_{sector}"
+            sb_ids.append(sid)
+            sb_labels.append(str(sector)[:25])
+            sb_parents.append("Portfolio")
+            sb_values.append(0)
+            sb_colors.append('#FF8C42')
             
-            dept_children = []
-            dept_vals = sdf.groupby('Department')['_flow_val'].sum().sort_values(ascending=False)
-            
-            for di, (dept, dval) in enumerate(dept_vals.items()):
-                if di >= MAX_FLOW:
-                    others_v = dept_vals.iloc[MAX_FLOW:].sum()
-                    if others_v > 0:
-                        dept_children.append({"name": "Others", "value": round(others_v/1e6, 2), "itemStyle": {"color": "#666"}, "label": {"formatter": f"Others\n{fmt_flow(others_v)}"}})
-                    break
-                
+            for dept in sdf['Department'].dropna().unique():
                 ddf = sdf[sdf['Department'] == dept]
-                app_vals = ddf.groupby('App Name')['_flow_val'].sum().sort_values(ascending=False)
-                app_children = []
-                for ai, (app, aval) in enumerate(app_vals.items()):
-                    if ai >= MAX_FLOW:
-                        o = app_vals.iloc[MAX_FLOW:].sum()
-                        if o > 0:
-                            app_children.append({"name": "Others", "value": round(o/1e6, 2), "itemStyle": {"color": "#666"}, "label": {"formatter": f"Others\n{fmt_flow(o)}"}})
-                        break
-                    app_children.append({"name": str(app)[:28], "value": round(aval/1e6, 2), "itemStyle": {"color": "rgba(255,255,255,0.4)"}, "label": {"formatter": f"{str(app)[:22]}\n{fmt_flow(aval)}"}})
+                did = f"d_{sector}_{dept}"
+                sb_ids.append(did)
+                sb_labels.append(str(dept)[:22])
+                sb_parents.append(sid)
+                sb_values.append(0)
+                sb_colors.append('#9D4EDD')
                 
-                dept_node = {"name": str(dept)[:25], "value": round(dval/1e6, 2), "itemStyle": {"color": "#9D4EDD"}, "label": {"formatter": f"{str(dept)[:20]}\n{fmt_flow(dval)}"}}
-                if app_children:
-                    dept_node["children"] = app_children
-                dept_children.append(dept_node)
-            
-            sector_node = {"name": str(sector)[:25], "value": round(sval/1e6, 2), "itemStyle": {"color": "#FF8C42"}, "label": {"formatter": f"{str(sector)[:22]}\n{fmt_flow(sval)}"}}
-            if dept_children:
-                sector_node["children"] = dept_children
-            flow_sector_children.append(sector_node)
+                for _, row in ddf.iterrows():
+                    aid = f"a_{row['App Name']}"
+                    sb_ids.append(aid)
+                    sb_labels.append(str(row['App Name'])[:20])
+                    sb_parents.append(did)
+                    sb_values.append(round(row['_fv'], 2))
+                    sb_colors.append('#4ECDC4')
         
-        if flow_sector_children:
-            flow_tree = [{"name": "Portfolio", "value": round(flow_root_val/1e6, 2), "itemStyle": {"color": "#00D9A3"}, "label": {"formatter": f"Portfolio\n{fmt_flow(flow_root_val)}"}, "children": flow_sector_children}]
-            
-            flow_option = {
-                "tooltip": {"trigger": "item", "formatter": "{b}: ${c}M"},
-                "series": [{"type": "tree", "data": flow_tree, "top": "2%", "left": "10%", "bottom": "2%", "right": "25%",
-                    "symbolSize": 12, "orient": "LR",
-                    "label": {"position": "right", "verticalAlign": "middle", "align": "left", "fontSize": 10, "color": "#FFFFFF", "distance": 6},
-                    "leaves": {"label": {"position": "right", "fontSize": 9, "color": "#B0B0B0"}},
-                    "lineStyle": {"color": "#555555", "width": 1.5, "curveness": 0.5},
-                    "emphasis": {"focus": "descendant"},
-                    "expandAndCollapse": True, "initialTreeDepth": 1,
-                    "animationDuration": 550, "animationDurationUpdate": 750
-                }]
-            }
-            
-            st_echarts(flow_option, height="600px", key="flow_tree")
-            st.caption("🖱️ **Click to expand/collapse** | 🟢 Portfolio → 🟠 Sector → 🟣 Department → ⚪ Apps")
-        else:
-            st.info("No data available for the current filters.")
+        fig_sun = go.Figure(go.Sunburst(
+            ids=sb_ids,
+            labels=sb_labels,
+            parents=sb_parents,
+            values=sb_values,
+            branchvalues='total',
+            marker=dict(colors=sb_colors, line=dict(width=1, color=COLORS['background'])),
+            hovertemplate='<b>%{label}</b><br>$%{value:,.0f}<extra></extra>',
+            textinfo='label',
+            insidetextorientation='radial'
+        ))
         
-    except ImportError:
-        st.warning("📦 Install streamlit-echarts: `pip install streamlit-echarts`")
+        fig_sun.update_layout(
+            paper_bgcolor=COLORS['background'],
+            font=dict(color='#FFFFFF', family='Arial', size=11),
+            height=550,
+            margin=dict(l=10, r=10, t=30, b=10)
+        )
+        
+        st.plotly_chart(fig_sun, use_container_width=True)
+        st.caption("🖱️ **Click a ring to drill down** | Click center to go back")
+    else:
+        st.info("No data available for the current filters and metric.")
 
     # === APPLICATION TABLE ===
     st.markdown("<br>", unsafe_allow_html=True)
@@ -1808,8 +1801,8 @@ with tab6:
                 
                 if pd.notna(crit_score) and pd.notna(spec_score):
                     combined = (crit_score + spec_score) / 2
-                    savings_pct = 0.70 - (0.70 / 3.6) * (combined - 1.4)
-                    savings_pct = max(0, min(0.70, savings_pct))
+                    savings_pct = 0.70 - (0.50 / 3.6) * (combined - 1.4)
+                    savings_pct = max(0.20, min(0.70, savings_pct))
                     
                     # Determine component category
                     category = component_to_category_vendor.get(comp_name, 'Infrastructure')
@@ -2445,19 +2438,21 @@ with tab7:
             </div>
             """, unsafe_allow_html=True)
             
-            # Ranked bar chart
+            # Ranked bar chart — top 10 only
             st.markdown("##### Vendor Ranking by Component Cost Efficiency")
+            
+            vendor_top10 = vendor_scores.head(10).sort_values('Score', ascending=True)
             
             fig_rec = go.Figure()
             
-            colors_rec = [COLORS['primary'] if i == 0 else (COLORS['secondary'] if i < 3 else '#666666') for i in range(len(vendor_scores))]
+            colors_rec = [COLORS['primary'] if s == vendor_top10['Score'].max() else (COLORS['secondary'] if s >= vendor_top10['Score'].quantile(0.7) else '#666666') for s in vendor_top10['Score']]
             
             fig_rec.add_trace(go.Bar(
-                x=vendor_scores['Score'],
-                y=vendor_scores['Vendor'],
+                x=vendor_top10['Score'],
+                y=vendor_top10['Vendor'],
                 orientation='h',
                 marker=dict(color=colors_rec),
-                text=[f"Score: {s:.0f} | ${c/1e3:.0f}K/app" for s, c in zip(vendor_scores['Score'], vendor_scores['Cost Per App'])],
+                text=[f"Score: {s:.0f} | ${c/1e3:.0f}K/app" for s, c in zip(vendor_top10['Score'], vendor_top10['Cost Per App'])],
                 textposition='outside',
                 hovertemplate='<b>%{y}</b><br>Score: %{x:.0f}/100<extra></extra>'
             ))
@@ -2468,47 +2463,47 @@ with tab7:
                 font=dict(color='#FFFFFF', family='Arial', size=10),
                 xaxis=dict(title='Efficiency Score (100 = Best)', gridcolor='#333333', range=[0, 115]),
                 yaxis=dict(title='', gridcolor='#333333'),
-                height=max(350, len(vendor_scores) * 28),
+                height=380,
                 margin=dict(l=150, r=100, t=20, b=40),
                 showlegend=False
             )
             
             st.plotly_chart(fig_rec, use_container_width=True)
             
-            # Component breakdown for top 3 vendors
-            st.markdown("##### Component Cost Breakdown — Top 3 Vendors")
+            # Component breakdown for top 3 vendors — in expander
+            with st.expander("🔬 Component Cost Breakdown — Top 3 Vendors", expanded=False):
             
-            top3 = vendor_scores.head(3)['Vendor'].tolist()
-            top3_data = vcc_df[vcc_df['Vendor'].isin(top3)]
+                top3 = vendor_scores.head(3)['Vendor'].tolist()
+                top3_data = vcc_df[vcc_df['Vendor'].isin(top3)]
             
-            pivot = top3_data.groupby(['Vendor', 'Component'])['Cost'].mean().reset_index()
+                pivot = top3_data.groupby(['Vendor', 'Component'])['Cost'].mean().reset_index()
             
-            fig_comp_rec = go.Figure()
+                fig_comp_rec = go.Figure()
             
-            comp_colors = [COLORS['primary'], COLORS['secondary'], '#9D4EDD']
-            for i, v in enumerate(top3):
-                v_data = pivot[pivot['Vendor'] == v].sort_values('Cost', ascending=True)
-                fig_comp_rec.add_trace(go.Bar(
-                    name=v,
-                    x=v_data['Cost'] / 1000,
-                    y=v_data['Component'],
-                    orientation='h',
-                    marker=dict(color=comp_colors[i])
-                ))
+                comp_colors = [COLORS['primary'], COLORS['secondary'], '#9D4EDD']
+                for i, v in enumerate(top3):
+                    v_data = pivot[pivot['Vendor'] == v].sort_values('Cost', ascending=True)
+                    fig_comp_rec.add_trace(go.Bar(
+                        name=v,
+                        x=v_data['Cost'] / 1000,
+                        y=v_data['Component'],
+                        orientation='h',
+                        marker=dict(color=comp_colors[i])
+                    ))
             
-            fig_comp_rec.update_layout(
-                paper_bgcolor=COLORS['background'],
-                plot_bgcolor=COLORS['card'],
-                font=dict(color='#FFFFFF', family='Arial', size=9),
-                xaxis=dict(title='Avg Cost per Component ($K)', gridcolor='#333333'),
-                yaxis=dict(title='', gridcolor='#333333'),
-                barmode='group',
-                height=max(400, len(selected_comps) * 35),
-                margin=dict(l=200, r=20, t=30, b=40),
-                legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1)
-            )
+                fig_comp_rec.update_layout(
+                    paper_bgcolor=COLORS['background'],
+                    plot_bgcolor=COLORS['card'],
+                    font=dict(color='#FFFFFF', family='Arial', size=9),
+                    xaxis=dict(title='Avg Cost per Component ($K)', gridcolor='#333333'),
+                    yaxis=dict(title='', gridcolor='#333333'),
+                    barmode='group',
+                    height=max(400, len(selected_comps) * 35),
+                    margin=dict(l=200, r=20, t=30, b=40),
+                    legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1)
+                )
             
-            st.plotly_chart(fig_comp_rec, use_container_width=True)
+                st.plotly_chart(fig_comp_rec, use_container_width=True)
         else:
             st.info("No component cost data available for the selected components.")
     else:
