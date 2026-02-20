@@ -162,8 +162,11 @@ def load_data():
     df['Combined Score'] = (df['Avg Specificity'] + df['Avg Criticality']) / 2
     
     # Savings formula: Higher combined score = Lower savings (harder to optimize)
-    # Score 1.4 → 70% savings, Score 5.0 → 20% savings
-    df['Savings %'] = 0.70 - (0.50 / 3.6) * (df['Combined Score'] - 1.4)
+    # Maps actual score range to 70% (lowest score) → 20% (highest score)
+    score_min = df['Combined Score'].min()
+    score_max = df['Combined Score'].max()
+    score_range = score_max - score_min if score_max > score_min else 1
+    df['Savings %'] = 0.70 - (0.50 / score_range) * (df['Combined Score'] - score_min)
     df['Savings %'] = df['Savings %'].clip(lower=0.20, upper=0.70)
     
     # Calculate financial metrics
@@ -198,9 +201,9 @@ def load_data():
     df['AI Savings %'] = ai_savings_list
     df['AI Savings % Raw'] = df['AI Savings %'].copy()  # Store raw for reference
     
-    return df, ia_time_df, ai_potential_df, ia_structure_df
+    return df, ia_time_df, ai_potential_df, ia_structure_df, score_min, score_range
 
-df, ia_time_df, ai_potential_df, ia_structure_df = load_data()
+df, ia_time_df, ai_potential_df, ia_structure_df, score_min, score_range = load_data()
 
 # Convert Department to string to handle mixed types
 df['Department'] = df['Department'].astype(str)
@@ -1079,9 +1082,9 @@ with tab2:
             """, unsafe_allow_html=True)
     
         with col2:
-            st.markdown("#### Bottom 10 Apps by Savings")
+            st.markdown("#### Bottom 10 Apps by Savings %")
         
-            bottom_apps = df.nsmallest(10, 'Potential Savings')[['App Name', 'Base Spend', 'Optimized Spend', 'Potential Savings', 'Adjusted Savings %']].sort_values('Potential Savings', ascending=True)
+            bottom_apps = df.nsmallest(10, 'Adjusted Savings %')[['App Name', 'Base Spend', 'Optimized Spend', 'Potential Savings', 'Adjusted Savings %']].sort_values('Adjusted Savings %', ascending=True)
         
             fig_bottom = go.Figure()
         
@@ -1639,17 +1642,20 @@ with tab5:
         
         st.plotly_chart(fig_top_inv, use_container_width=True)
 
-    # === Portfolio Cost Flow ===
+    # === Portfolio Cost Flow (ECharts Tree — same visual as Tab 1 Structure) ===
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("#### Portfolio Cost Flow")
     
-    flow_metric = st.radio(
-        "Display Value:",
-        ["Baseline Cost", "Optimized + AI", "Total Savings"],
-        horizontal=True,
-        key="flow_metric_v5"
-    )
+    col_flow1, col_flow2 = st.columns([1, 3])
+    with col_flow1:
+        flow_metric = st.radio(
+            "Display Value:",
+            ["Baseline Cost", "Optimized + AI", "Total Savings"],
+            horizontal=False,
+            key="flow_metric_v7"
+        )
     
+    # Compute flow value column
     flow_df = inventory_df.copy()
     if flow_metric == "Baseline Cost":
         flow_df['_fv'] = flow_df['Base Spend']
@@ -1661,60 +1667,148 @@ with tab5:
     flow_df = flow_df[flow_df['_fv'] > 0]
     
     if len(flow_df) > 0:
-        # Build sunburst data manually for full control
-        sb_ids = ["Portfolio"]
-        sb_labels = ["Portfolio"]
-        sb_parents = [""]
-        sb_values = [0]  # root gets 0 (auto-summed)
-        sb_colors = [COLORS['primary']]
-        
-        for sector in flow_df['Sector'].dropna().unique():
-            sdf = flow_df[flow_df['Sector'] == sector]
-            sid = f"s_{sector}"
-            sb_ids.append(sid)
-            sb_labels.append(str(sector)[:25])
-            sb_parents.append("Portfolio")
-            sb_values.append(0)
-            sb_colors.append('#FF8C42')
+        try:
+            from streamlit_echarts import st_echarts
             
-            for dept in sdf['Department'].dropna().unique():
-                ddf = sdf[sdf['Department'] == dept]
-                did = f"d_{sector}_{dept}"
-                sb_ids.append(did)
-                sb_labels.append(str(dept)[:22])
-                sb_parents.append(sid)
-                sb_values.append(0)
-                sb_colors.append('#9D4EDD')
+            # Load component structure for leaf levels
+            structure_flow = pd.read_excel('AssetList.xlsx', sheet_name='Structure')
+            crit_flow = pd.read_excel('AssetList.xlsx', sheet_name='Criticality Score')
+            spec_flow = pd.read_excel('AssetList.xlsx', sheet_name='Specificity Score')
+            comp_names_flow = list(crit_flow.iloc[0, 1:].values)
+            comp_to_lvl1 = dict(zip(structure_flow['Component Lowest'], structure_flow['Component lvl 1']))
+            comp_to_lvl2 = dict(zip(structure_flow['Component Lowest'], structure_flow['Component lvl 2']))
+            
+            MX = 8
+            root_val = flow_df['_fv'].sum()
+            
+            def fmtv(val):
+                if val >= 1e6: return f"${val/1e6:.1f}M"
+                elif val >= 1e3: return f"${val/1e3:.0f}K"
+                return f"${val:.0f}"
+            
+            def build_comp_children(app_row):
+                """Build Component lvl1 → lvl2 tree for one app."""
+                ac = crit_flow[crit_flow.iloc[:, 0] == app_row['App Name']]
+                asp = spec_flow[spec_flow.iloc[:, 0] == app_row['App Name']]
+                if len(ac) == 0 or len(asp) == 0:
+                    return []
                 
-                for _, row in ddf.iterrows():
-                    aid = f"a_{row['App Name']}"
-                    sb_ids.append(aid)
-                    sb_labels.append(str(row['App Name'])[:20])
-                    sb_parents.append(did)
-                    sb_values.append(round(row['_fv'], 2))
-                    sb_colors.append('#4ECDC4')
+                from collections import defaultdict
+                # Group components by lvl1 → lvl2
+                lvl1_lvl2 = defaultdict(lambda: defaultdict(float))
+                cat_comps = defaultdict(list)
+                for ci, cn in enumerate(comp_names_flow):
+                    cs = pd.to_numeric(ac.iloc[0, ci+1], errors='coerce')
+                    ss = pd.to_numeric(asp.iloc[0, ci+1], errors='coerce')
+                    if pd.notna(cs) and pd.notna(ss):
+                        cat = comp_to_lvl1.get(cn, 'Infrastructure')
+                        cat_comps[cat].append((cn, (cs + ss) / 2))
+                
+                base = app_row['_fv']
+                for cat, comps in cat_comps.items():
+                    budget = base * (app_cost_share / 100) if cat == 'Applications' else base * (infra_cost_share / 100)
+                    ts = sum(s for _, s in comps)
+                    if ts == 0: ts = 1
+                    for cn, s in comps:
+                        l2 = comp_to_lvl2.get(cn, 'Other')
+                        lvl1_lvl2[cat][l2] += budget * (s / ts)
+                
+                lvl1_children = []
+                for cat in sorted(lvl1_lvl2.keys()):
+                    cat_val = sum(lvl1_lvl2[cat].values())
+                    l2_children = []
+                    for l2, v in sorted(lvl1_lvl2[cat].items(), key=lambda x: -x[1])[:MX]:
+                        l2_children.append({
+                            "name": str(l2)[:22],
+                            "value": round(v / 1e6, 2),
+                            "itemStyle": {"color": "rgba(255,255,255,0.35)"},
+                            "label": {"formatter": f"{str(l2)[:18]}\n{fmtv(v)}"}
+                        })
+                    color = '#4ECDC4' if cat == 'Applications' else '#9D4EDD'
+                    lvl1_children.append({
+                        "name": cat,
+                        "value": round(cat_val / 1e6, 2),
+                        "itemStyle": {"color": color},
+                        "label": {"formatter": f"{cat}\n{fmtv(cat_val)}"},
+                        "children": l2_children
+                    })
+                return lvl1_children
+            
+            # Build: Portfolio → Vendor → App → Comp lvl1 → Comp lvl2
+            vendor_vals = flow_df.groupby('Vendor')['_fv'].sum().sort_values(ascending=False)
+            vendor_children = []
+            for vi, (vendor, vval) in enumerate(vendor_vals.items()):
+                if vi >= MX:
+                    ov = vendor_vals.iloc[MX:].sum()
+                    if ov > 0:
+                        vendor_children.append({"name": "Others", "value": round(ov/1e6, 2), "itemStyle": {"color": "#666"}, "label": {"formatter": f"Others\n{fmtv(ov)}"}})
+                    break
+                
+                vdf = flow_df[flow_df['Vendor'] == vendor]
+                app_vals = vdf.set_index('App Name')['_fv'].sort_values(ascending=False)
+                app_children = []
+                for ai, (app, aval) in enumerate(app_vals.items()):
+                    if ai >= MX:
+                        oa = app_vals.iloc[MX:].sum()
+                        if oa > 0:
+                            app_children.append({"name": "Others", "value": round(oa/1e6, 2), "itemStyle": {"color": "#666"}, "label": {"formatter": f"Others\n{fmtv(oa)}"}})
+                        break
+                    
+                    app_row = vdf[vdf['App Name'] == app].iloc[0]
+                    comp_ch = build_comp_children(app_row)
+                    app_node = {
+                        "name": str(app)[:28],
+                        "value": round(aval / 1e6, 2),
+                        "itemStyle": {"color": "#FF8C42"},
+                        "label": {"formatter": f"{str(app)[:22]}\n{fmtv(aval)}"}
+                    }
+                    if comp_ch:
+                        app_node["children"] = comp_ch
+                    app_children.append(app_node)
+                
+                vendor_node = {
+                    "name": str(vendor)[:28],
+                    "value": round(vval / 1e6, 2),
+                    "itemStyle": {"color": "#4ECDC4"},
+                    "label": {"formatter": f"{str(vendor)[:22]}\n{fmtv(vval)}"},
+                }
+                if app_children:
+                    vendor_node["children"] = app_children
+                vendor_children.append(vendor_node)
+            
+            tree_data_flow = [{
+                "name": "Portfolio",
+                "value": round(root_val / 1e6, 2),
+                "itemStyle": {"color": "#00D9A3"},
+                "label": {"formatter": f"Portfolio\n{fmtv(root_val)}"},
+                "children": vendor_children
+            }]
+            
+            option_flow = {
+                "tooltip": {"trigger": "item", "triggerOn": "mousemove", "formatter": "{b}: ${c}M"},
+                "series": [{
+                    "type": "tree",
+                    "data": tree_data_flow,
+                    "top": "2%", "left": "10%", "bottom": "2%", "right": "25%",
+                    "symbolSize": 18, "orient": "LR",
+                    "label": {"position": "right", "verticalAlign": "middle", "align": "left",
+                              "fontSize": 13, "color": "#FFFFFF", "distance": 10, "fontWeight": "bold"},
+                    "leaves": {"label": {"position": "right", "verticalAlign": "middle",
+                                         "align": "left", "fontSize": 11, "color": "#D0D0D0"}},
+                    "lineStyle": {"color": "#555555", "width": 1.5, "curveness": 0.5},
+                    "emphasis": {"focus": "descendant"},
+                    "expandAndCollapse": True,
+                    "initialTreeDepth": 1,
+                    "animationDuration": 550,
+                    "animationDurationUpdate": 750
+                }]
+            }
+            
+            st_echarts(option_flow, height="700px", key="flow_tree_tab4_v2")
+            st.caption("🖱️ **Click to expand/collapse** | 🟢 Portfolio → 🔵 Vendor → 🟠 App → 🟣/🔵 Component Lvl1 → ⚪ Component Lvl2")
         
-        fig_sun = go.Figure(go.Sunburst(
-            ids=sb_ids,
-            labels=sb_labels,
-            parents=sb_parents,
-            values=sb_values,
-            branchvalues='total',
-            marker=dict(colors=sb_colors, line=dict(width=1, color=COLORS['background'])),
-            hovertemplate='<b>%{label}</b><br>$%{value:,.0f}<extra></extra>',
-            textinfo='label',
-            insidetextorientation='radial'
-        ))
-        
-        fig_sun.update_layout(
-            paper_bgcolor=COLORS['background'],
-            font=dict(color='#FFFFFF', family='Arial', size=11),
-            height=550,
-            margin=dict(l=10, r=10, t=30, b=10)
-        )
-        
-        st.plotly_chart(fig_sun, use_container_width=True)
-        st.caption("🖱️ **Click a ring to drill down** | Click center to go back")
+        except ImportError:
+            st.warning("📦 Install streamlit-echarts: `pip install streamlit-echarts`")
     else:
         st.info("No data available for the current filters and metric.")
 
@@ -1801,7 +1895,7 @@ with tab6:
                 
                 if pd.notna(crit_score) and pd.notna(spec_score):
                     combined = (crit_score + spec_score) / 2
-                    savings_pct = 0.70 - (0.50 / 3.6) * (combined - 1.4)
+                    savings_pct = 0.70 - (0.50 / score_range) * (combined - score_min)
                     savings_pct = max(0.20, min(0.70, savings_pct))
                     
                     # Determine component category
